@@ -1,5 +1,5 @@
 import { loadOnscrits, slugify } from './data.js';
-import { loadProgress, saveMatchScore, saveProgress, saveQuizScore } from './firebase.js';
+import { getLeaderboardAround, loadProgress, saveMatchScore, saveProgress, saveQuizScore } from './firebase.js';
 import { createFlashcardsView } from './flashcards.js';
 import { createLeaderboardView } from './leaderboard.js';
 import { createMatchView } from './match.js';
@@ -110,6 +110,21 @@ const leaderboardView = createLeaderboardView(views.leaderboard, {
   getUser: () => user,
 });
 
+async function saveAndGetStanding(mode, payload) {
+  const res =
+    mode === 'match'
+      ? await saveMatchScore(user, payload.timeMs)
+      : await saveQuizScore(user, payload.score, payload.total, payload.timeMs);
+
+  let standing = null;
+  try {
+    standing = await getLeaderboardAround(mode, user.key, 2);
+  } catch {
+    standing = null;
+  }
+  return { ...res, standing };
+}
+
 async function submitScore(mode, payload) {
   if (!user) {
     return new Promise((resolve) => {
@@ -117,10 +132,7 @@ async function submitScore(mode, payload) {
       openAuthModal();
     });
   }
-  if (mode === 'match') {
-    return saveMatchScore(user, payload.timeMs);
-  }
-  return saveQuizScore(user, payload.score, payload.total, payload.timeMs);
+  return saveAndGetStanding(mode, payload);
 }
 
 function switchTab(nextTab) {
@@ -200,10 +212,7 @@ authForm.addEventListener('submit', async (e) => {
   authModal.hidden = true;
 
   if (pending) {
-    const res =
-      pending.mode === 'match'
-        ? await saveMatchScore(user, pending.payload.timeMs)
-        : await saveQuizScore(user, pending.payload.score, pending.payload.total, pending.payload.timeMs);
+    const res = await saveAndGetStanding(pending.mode, pending.payload);
     pending.resolve(res);
   }
 

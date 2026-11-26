@@ -1,4 +1,5 @@
 import { formatTime, shuffle } from './data.js';
+import { renderMiniLeaderboard } from './leaderboard.js';
 
 const TOTAL_QUESTIONS = 10;
 
@@ -153,6 +154,7 @@ export function createQuizView(container, { getItems, onGameFinish, isActive }) 
       <div class="result-card">
         <div class="result-score">${score} / ${questions.length} · ${formatTime(finalMs)}</div>
         <div class="result-badge" id="quiz-badge" hidden>Record !</div>
+        <div class="result-standing" id="quiz-standing" hidden></div>
         <button type="button" class="btn btn-primary" id="quiz-again">Relancer</button>
       </div>
     `;
@@ -162,6 +164,14 @@ export function createQuizView(container, { getItems, onGameFinish, isActive }) 
     if (res && res.isNewBest) {
       const badge = stage.querySelector('#quiz-badge');
       if (badge) badge.hidden = false;
+    }
+    if (res && res.standing) {
+      const standingEl = stage.querySelector('#quiz-standing');
+      const html = renderMiniLeaderboard(res.standing, 'quiz');
+      if (standingEl && html) {
+        standingEl.innerHTML = html;
+        standingEl.hidden = false;
+      }
     }
   }
 

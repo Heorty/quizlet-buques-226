@@ -1,4 +1,5 @@
 import { formatTime, shuffle } from './data.js';
+import { renderMiniLeaderboard } from './leaderboard.js';
 
 const PAIR_COUNT = 6;
 const PENALTY_MS = 1000;
@@ -179,6 +180,7 @@ export function createMatchView(container, { getItems, onGameFinish }) {
       <div class="result-card">
         <div class="result-score">${formatTime(finalMs)}</div>
         <div class="result-badge" id="match-badge" hidden>Record !</div>
+        <div class="result-standing" id="match-standing" hidden></div>
         <button type="button" class="btn btn-primary" id="match-again">Relancer</button>
       </div>
     `;
@@ -188,6 +190,14 @@ export function createMatchView(container, { getItems, onGameFinish }) {
     if (res && res.isNewBest) {
       const badge = gridEl.querySelector('#match-badge');
       if (badge) badge.hidden = false;
+    }
+    if (res && res.standing) {
+      const standingEl = gridEl.querySelector('#match-standing');
+      const html = renderMiniLeaderboard(res.standing, 'match');
+      if (standingEl && html) {
+        standingEl.innerHTML = html;
+        standingEl.hidden = false;
+      }
     }
   }
 

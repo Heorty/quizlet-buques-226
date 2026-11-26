@@ -90,6 +90,36 @@ export function createLeaderboardView(container, { getUser }) {
   };
 }
 
+export function renderMiniLeaderboard(standing, mode) {
+  if (!standing || !standing.rank || !standing.entries || standing.entries.length === 0) {
+    return '';
+  }
+  return `
+    <div class="result-rank">Classement : #${standing.rank} / ${standing.total}</div>
+    <table class="lb-table mini-lb">
+      <tbody>
+        ${standing.entries
+          .map((r) => {
+            const rankClass = r.rank <= 3 ? 'lb-rank lb-rank-top' : 'lb-rank';
+            const val =
+              mode === 'quiz'
+                ? `${r.score}/${r.total || 10} · ${formatTime(r.timeMs)}`
+                : formatTime(r.timeMs);
+            return `
+              <tr class="${r.isMe ? 'is-me' : ''}">
+                <td class="${rankClass}">${r.rank}</td>
+                <td>${escapeHtml(r.buque)}</td>
+                <td>${escapeHtml(r.famss)}</td>
+                <td class="lb-score-cell">${val}</td>
+              </tr>
+            `;
+          })
+          .join('')}
+      </tbody>
+    </table>
+  `;
+}
+
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')

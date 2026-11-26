@@ -112,7 +112,7 @@ export async function saveQuizScore(user, score, total, timeMs) {
   return { saved: false, isNewBest: false };
 }
 
-export async function getLeaderboard(mode) {
+async function fetchSortedLeaderboard(mode) {
   const col = mode === 'quiz' ? 'scores_quiz' : 'scores_match';
   const lsKey = mode === 'quiz' ? LS_QUIZ : LS_MATCH;
   let rows = [];
@@ -131,7 +131,34 @@ export async function getLeaderboard(mode) {
   } else {
     rows.sort((a, b) => a.timeMs - b.timeMs);
   }
+  return rows;
+}
+
+export async function getLeaderboard(mode) {
+  const rows = await fetchSortedLeaderboard(mode);
   return rows.slice(0, 50);
+}
+
+export async function getLeaderboardAround(mode, userKey, radius = 2) {
+  const rows = await fetchSortedLeaderboard(mode);
+  const idx = rows.findIndex((r) => r.key === userKey);
+  if (idx === -1) {
+    return { rank: null, total: rows.length, entries: [] };
+  }
+  const maxShown = radius * 2 + 1;
+  let start = Math.max(0, idx - radius);
+  const end = Math.min(rows.length, start + maxShown);
+  start = Math.max(0, end - maxShown);
+
+  return {
+    rank: idx + 1,
+    total: rows.length,
+    entries: rows.slice(start, end).map((r, i) => ({
+      ...r,
+      rank: start + i + 1,
+      isMe: r.key === userKey,
+    })),
+  };
 }
 
 export async function loadProgress(user) {
