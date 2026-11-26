@@ -1,7 +1,7 @@
 import { shuffle } from './data.js';
 
 const SWIPE_THRESHOLD_PX = 80;
-const SWIPE_ANIM_MS = 220;
+const SWIPE_ANIM_MS = 280;
 
 export function createFlashcardsView(container, { getItems, getMastered, setMastered, isActive }) {
   let filter = 'all'; // 'all' | 'review' | 'mastered'

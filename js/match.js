@@ -18,7 +18,7 @@ export function createMatchView(container, { getItems, onGameFinish }) {
         <span class="timer" id="match-timer">0.00s</span>
         <span class="penalty-flash" id="match-penalty">+1s</span>
       </div>
-      <button type="button" class="btn" id="match-restart">Rejouer</button>
+      <button type="button" class="btn" id="match-restart" hidden>Relancer</button>
     </div>
     <div class="match-grid" id="match-grid"></div>
   `;
@@ -26,6 +26,7 @@ export function createMatchView(container, { getItems, onGameFinish }) {
   const gridEl = container.querySelector('#match-grid');
   const timerEl = container.querySelector('#match-timer');
   const penaltyEl = container.querySelector('#match-penalty');
+  const restartBtn = container.querySelector('#match-restart');
 
   function stopTimer() {
     if (timerId) {
@@ -44,14 +45,7 @@ export function createMatchView(container, { getItems, onGameFinish }) {
     timerId = requestAnimationFrame(tick);
   }
 
-  function startTimerIfNeeded() {
-    if (startTs === null) {
-      startTs = performance.now();
-      timerId = requestAnimationFrame(tick);
-    }
-  }
-
-  function startNewGame() {
+  function showReady() {
     stopTimer();
     selectedIdx = null;
     matchedCount = 0;
@@ -60,6 +54,26 @@ export function createMatchView(container, { getItems, onGameFinish }) {
     locked = false;
     timerEl.textContent = '0.00s';
     penaltyEl.classList.remove('is-visible');
+    restartBtn.hidden = true;
+
+    gridEl.className = '';
+    gridEl.innerHTML = `
+      <div class="result-card">
+        <button type="button" class="btn btn-primary" id="match-launch">Lancer</button>
+      </div>
+    `;
+    gridEl.querySelector('#match-launch').addEventListener('click', startNewGame);
+  }
+
+  function startNewGame() {
+    stopTimer();
+    selectedIdx = null;
+    matchedCount = 0;
+    penaltyMs = 0;
+    locked = false;
+    timerEl.textContent = '0.00s';
+    penaltyEl.classList.remove('is-visible');
+    restartBtn.hidden = false;
 
     const pool = getItems().filter((x) => x.photo && x.buque);
     const chosen = shuffle(pool).slice(0, PAIR_COUNT);
@@ -85,6 +99,9 @@ export function createMatchView(container, { getItems, onGameFinish }) {
     gridEl.querySelectorAll('.match-tile').forEach((btn) => {
       btn.addEventListener('click', () => onTileClick(Number(btn.dataset.idx)));
     });
+
+    startTs = performance.now();
+    timerId = requestAnimationFrame(tick);
   }
 
   function onTileClick(idx) {
@@ -92,7 +109,6 @@ export function createMatchView(container, { getItems, onGameFinish }) {
     const tile = tiles[idx];
     if (!tile || tile.matched) return;
 
-    startTimerIfNeeded();
     const btn = gridEl.querySelector(`[data-idx="${idx}"]`);
 
     if (selectedIdx === null) {
@@ -157,12 +173,13 @@ export function createMatchView(container, { getItems, onGameFinish }) {
   }
 
   async function finishGame(finalMs) {
+    restartBtn.hidden = true;
     gridEl.className = '';
     gridEl.innerHTML = `
       <div class="result-card">
         <div class="result-score">${formatTime(finalMs)}</div>
         <div class="result-badge" id="match-badge" hidden>Record !</div>
-        <button type="button" class="btn btn-primary" id="match-again">Rejouer</button>
+        <button type="button" class="btn btn-primary" id="match-again">Relancer</button>
       </div>
     `;
     gridEl.querySelector('#match-again').addEventListener('click', startNewGame);
@@ -174,11 +191,11 @@ export function createMatchView(container, { getItems, onGameFinish }) {
     }
   }
 
-  container.querySelector('#match-restart').addEventListener('click', startNewGame);
+  restartBtn.addEventListener('click', startNewGame);
 
   return {
     start() {
-      startNewGame();
+      showReady();
     },
     stop() {
       stopTimer();
