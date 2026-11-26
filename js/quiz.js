@@ -16,7 +16,7 @@ export function createQuizView(container, { getItems, onGameFinish, isActive }) 
         <span class="counter" id="quiz-progress">1 / ${TOTAL_QUESTIONS}</span>
         <span class="timer" id="quiz-timer">0.00s</span>
       </div>
-      <button type="button" class="btn" id="quiz-restart">Rejouer</button>
+      <button type="button" class="btn" id="quiz-restart" hidden>Relancer</button>
     </div>
     <div id="quiz-stage" class="quiz-wrap"></div>
   `;
@@ -24,6 +24,7 @@ export function createQuizView(container, { getItems, onGameFinish, isActive }) 
   const stage = container.querySelector('#quiz-stage');
   const progressEl = container.querySelector('#quiz-progress');
   const timerEl = container.querySelector('#quiz-timer');
+  const restartBtn = container.querySelector('#quiz-restart');
 
   function stopTimer() {
     if (timerId) {
@@ -37,6 +38,25 @@ export function createQuizView(container, { getItems, onGameFinish, isActive }) 
       timerEl.textContent = formatTime(performance.now() - startTs);
     }
     timerId = requestAnimationFrame(tick);
+  }
+
+  function showReady() {
+    stopTimer();
+    questions = [];
+    qIndex = 0;
+    score = 0;
+    startTs = null;
+    locked = false;
+    progressEl.textContent = `0 / ${TOTAL_QUESTIONS}`;
+    timerEl.textContent = '0.00s';
+    restartBtn.hidden = true;
+
+    stage.innerHTML = `
+      <div class="result-card">
+        <button type="button" class="btn btn-primary" id="quiz-launch">Lancer</button>
+      </div>
+    `;
+    stage.querySelector('#quiz-launch').addEventListener('click', startNewQuiz);
   }
 
   function startNewQuiz() {
@@ -54,6 +74,7 @@ export function createQuizView(container, { getItems, onGameFinish, isActive }) 
     qIndex = 0;
     score = 0;
     locked = false;
+    restartBtn.hidden = false;
     startTs = performance.now();
     timerEl.textContent = '0.00s';
     timerId = requestAnimationFrame(tick);
@@ -126,12 +147,13 @@ export function createQuizView(container, { getItems, onGameFinish, isActive }) 
     stopTimer();
     timerEl.textContent = formatTime(finalMs);
     progressEl.textContent = `${questions.length} / ${questions.length}`;
+    restartBtn.hidden = true;
 
     stage.innerHTML = `
       <div class="result-card">
         <div class="result-score">${score} / ${questions.length} · ${formatTime(finalMs)}</div>
         <div class="result-badge" id="quiz-badge" hidden>Record !</div>
-        <button type="button" class="btn btn-primary" id="quiz-again">Rejouer</button>
+        <button type="button" class="btn btn-primary" id="quiz-again">Relancer</button>
       </div>
     `;
     stage.querySelector('#quiz-again').addEventListener('click', startNewQuiz);
@@ -143,7 +165,7 @@ export function createQuizView(container, { getItems, onGameFinish, isActive }) 
     }
   }
 
-  container.querySelector('#quiz-restart').addEventListener('click', startNewQuiz);
+  restartBtn.addEventListener('click', startNewQuiz);
 
   document.addEventListener('keydown', (e) => {
     if (!isActive()) return;
@@ -155,7 +177,7 @@ export function createQuizView(container, { getItems, onGameFinish, isActive }) 
 
   return {
     start() {
-      startNewQuiz();
+      showReady();
     },
     stop() {
       stopTimer();
