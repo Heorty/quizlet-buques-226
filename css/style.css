@@ -280,10 +280,86 @@ button {
 }
 
 /* Flashcards */
+#view-flashcards {
+  overflow-x: clip;
+}
+
 .fc-stage {
   width: 100%;
   max-width: 360px;
+}
+
+.fc-swipe {
+  position: relative;
+  width: 100%;
   perspective: 1200px;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.24s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.22s ease;
+  will-change: transform, opacity;
+}
+
+.fc-swipe.is-dragging {
+  transition: none;
+}
+
+.fc-swipe.is-swiping-right {
+  transform: translate3d(125%, 16px, 0) rotate(14deg) !important;
+  opacity: 0;
+}
+
+.fc-swipe.is-swiping-left {
+  transform: translate3d(-125%, 16px, 0) rotate(-14deg) !important;
+  opacity: 0;
+}
+
+.fc-swipe.is-enter {
+  animation: fcEnter 0.18s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+@keyframes fcEnter {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.fc-swipe-stamp {
+  position: absolute;
+  top: 18px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  pointer-events: none;
+  opacity: 0;
+  border: 2px solid;
+  transition: opacity 0.12s;
+  z-index: 5;
+}
+
+.fc-swipe-stamp.is-master {
+  left: 16px;
+  color: var(--success);
+  background: var(--success-tint);
+  border-color: var(--success);
+}
+
+.fc-swipe-stamp.is-review {
+  right: 16px;
+  color: var(--error);
+  background: var(--error-tint);
+  border-color: var(--error);
+}
+
+.fc-swipe.is-swiping-right .fc-swipe-stamp.is-master,
+.fc-swipe.is-swiping-left .fc-swipe-stamp.is-review {
+  opacity: 1;
 }
 
 .fc-card {
@@ -316,6 +392,8 @@ button {
   height: 100%;
   object-fit: cover;
   display: block;
+  pointer-events: none;
+  -webkit-user-drag: none;
 }
 
 .fc-back {

@@ -1,11 +1,16 @@
 import { shuffle } from './data.js';
 
+const SWIPE_THRESHOLD_PX = 80;
+const SWIPE_ANIM_MS = 220;
+
 export function createFlashcardsView(container, { getItems, getMastered, setMastered, isActive }) {
   let filter = 'all'; // 'all' | 'review' | 'mastered'
   let phase = 'overview'; // 'overview' | 'study' | 'summary'
   let deck = [];
   let index = 0;
   let flipped = false;
+  let animating = false;
+  let suppressClick = false;
   let sessionResults = new Map();
 
   container.innerHTML = `
@@ -64,6 +69,7 @@ export function createFlashcardsView(container, { getItems, getMastered, setMast
     deck = doShuffle ? shuffle(list) : list.slice();
     index = 0;
     flipped = false;
+    animating = false;
     sessionResults = new Map();
     phase = 'study';
     render();
@@ -81,7 +87,7 @@ export function createFlashcardsView(container, { getItems, getMastered, setMast
     } else if (phase === 'summary') {
       renderSummary();
     } else {
-      renderStudy();
+      renderStudy(false);
     }
   }
 
@@ -143,7 +149,7 @@ export function createFlashcardsView(container, { getItems, getMastered, setMast
     if (resetBtn) resetBtn.addEventListener('click', resetAllProgress);
   }
 
-  function renderStudy() {
+  function renderStudy(animateEnter = false) {
     if (deck.length === 0) {
       phase = 'overview';
       renderOverview();
@@ -163,20 +169,33 @@ export function createFlashcardsView(container, { getItems, getMastered, setMast
     const buqueText = item.buque || '—';
 
     stage.innerHTML = `
-      <div class="fc-card${flipped ? ' is-flipped' : ''}" id="fc-card" tabindex="0">
-        <div class="fc-face fc-front">
-          <img src="./${escapeHtml(item.photo)}" alt="" loading="eager">
-        </div>
-        <div class="fc-face fc-back">
-          <div class="fc-buque">${escapeHtml(buqueText)}</div>
-          ${famssHtml}
-          <div class="fc-nom">${escapeHtml(item.nom)}</div>
+      <div class="fc-swipe${animateEnter ? ' is-enter' : ''}" id="fc-swipe">
+        <div class="fc-swipe-stamp is-master">Acquis</div>
+        <div class="fc-swipe-stamp is-review">À revoir</div>
+        <div class="fc-card${flipped ? ' is-flipped' : ''}" id="fc-card" tabindex="0">
+          <div class="fc-face fc-front">
+            <img src="./${escapeHtml(item.photo)}" alt="" loading="eager" draggable="false">
+          </div>
+          <div class="fc-face fc-back">
+            <div class="fc-buque">${escapeHtml(buqueText)}</div>
+            ${famssHtml}
+            <div class="fc-nom">${escapeHtml(item.nom)}</div>
+          </div>
         </div>
       </div>
     `;
 
+    const swipeEl = stage.querySelector('#fc-swipe');
     const cardEl = stage.querySelector('#fc-card');
-    cardEl.addEventListener('click', toggleFlip);
+    const masterStamp = swipeEl.querySelector('.fc-swipe-stamp.is-master');
+    const reviewStamp = swipeEl.querySelector('.fc-swipe-stamp.is-review');
+
+    cardEl.addEventListener('click', () => {
+      if (suppressClick || animating) return;
+      toggleFlip();
+    });
+
+    attachSwipeGesture(swipeEl, masterStamp, reviewStamp);
 
     if (index + 1 < deck.length) {
       const nextItem = deck[index + 1];
@@ -185,6 +204,74 @@ export function createFlashcardsView(container, { getItems, getMastered, setMast
         preload.src = `./${nextItem.photo}`;
       }
     }
+  }
+
+  function attachSwipeGesture(swipeEl, masterStamp, reviewStamp) {
+    let activePointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let dx = 0;
+    let isHorizontal = false;
+
+    swipeEl.addEventListener('pointerdown', (e) => {
+      if (animating || e.button !== 0) return;
+      activePointerId = e.pointerId;
+      startX = e.clientX;
+      startY = e.clientY;
+      dx = 0;
+      isHorizontal = false;
+    });
+
+    swipeEl.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== activePointerId || animating) return;
+      const curDx = e.clientX - startX;
+      const curDy = e.clientY - startY;
+
+      if (!isHorizontal) {
+        if (Math.abs(curDx) > 10 && Math.abs(curDx) > Math.abs(curDy)) {
+          isHorizontal = true;
+          swipeEl.classList.add('is-dragging');
+          try {
+            swipeEl.setPointerCapture(e.pointerId);
+          } catch {
+            // ignore if pointer capture is unsupported
+          }
+        } else {
+          return;
+        }
+      }
+
+      dx = curDx;
+      swipeEl.style.transform = `translate3d(${dx}px, ${Math.abs(dx) * 0.05}px, 0) rotate(${dx * 0.045}deg)`;
+      const progress = Math.min(1, Math.abs(dx) / 90);
+      masterStamp.style.opacity = dx > 0 ? String(progress) : '0';
+      reviewStamp.style.opacity = dx < 0 ? String(progress) : '0';
+    });
+
+    function endDrag(e) {
+      if (e.pointerId !== activePointerId) return;
+      activePointerId = null;
+      swipeEl.classList.remove('is-dragging');
+
+      if (!isHorizontal) return;
+      isHorizontal = false;
+
+      suppressClick = true;
+      setTimeout(() => {
+        suppressClick = false;
+      }, 50);
+
+      if (e.type === 'pointerup' && Math.abs(dx) >= SWIPE_THRESHOLD_PX) {
+        markCurrent(dx > 0);
+      } else {
+        swipeEl.style.transform = '';
+        masterStamp.style.opacity = '';
+        reviewStamp.style.opacity = '';
+      }
+    }
+
+    swipeEl.addEventListener('pointerup', endDrag);
+    swipeEl.addEventListener('pointercancel', endDrag);
   }
 
   function renderSummary() {
@@ -249,18 +336,18 @@ export function createFlashcardsView(container, { getItems, getMastered, setMast
   }
 
   function toggleFlip() {
-    if (phase !== 'study' || deck.length === 0) return;
+    if (phase !== 'study' || deck.length === 0 || animating) return;
     flipped = !flipped;
     const cardEl = stage.querySelector('#fc-card');
     if (cardEl) cardEl.classList.toggle('is-flipped', flipped);
   }
 
   function step(delta) {
-    if (phase !== 'study' || deck.length === 0) return;
+    if (phase !== 'study' || deck.length === 0 || animating) return;
     if (delta < 0) {
       index = Math.max(0, index + delta);
       flipped = false;
-      renderStudy();
+      renderStudy(false);
       return;
     }
     if (index + 1 >= deck.length) {
@@ -270,35 +357,48 @@ export function createFlashcardsView(container, { getItems, getMastered, setMast
     }
     index += 1;
     flipped = false;
-    renderStudy();
+    renderStudy(false);
   }
 
   function markCurrent(isMastered) {
-    if (phase !== 'study' || deck.length === 0) return;
-    const item = deck[index];
-    const mastered = new Set(getMastered());
-    if (isMastered) {
-      mastered.add(item.id);
-    } else {
-      mastered.delete(item.id);
-    }
-    setMastered(mastered);
-    sessionResults.set(item.id, isMastered);
+    if (phase !== 'study' || deck.length === 0 || animating) return;
+    animating = true;
 
-    if (index + 1 >= deck.length) {
-      phase = 'summary';
-      renderSummary();
-      return;
+    const item = deck[index];
+    const swipeEl = stage.querySelector('#fc-swipe');
+    if (swipeEl) {
+      swipeEl.classList.remove('is-enter', 'is-dragging');
+      swipeEl.style.transform = '';
+      swipeEl.classList.add(isMastered ? 'is-swiping-right' : 'is-swiping-left');
     }
-    index += 1;
-    flipped = false;
-    renderStudy();
+
+    setTimeout(() => {
+      const mastered = new Set(getMastered());
+      if (isMastered) {
+        mastered.add(item.id);
+      } else {
+        mastered.delete(item.id);
+      }
+      setMastered(mastered);
+      sessionResults.set(item.id, isMastered);
+      animating = false;
+
+      if (index + 1 >= deck.length) {
+        phase = 'summary';
+        renderSummary();
+        return;
+      }
+      index += 1;
+      flipped = false;
+      renderStudy(true);
+    }, SWIPE_ANIM_MS);
   }
 
   filterBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       filter = btn.dataset.filter;
       filterBtns.forEach((b) => b.classList.toggle('is-active', b === btn));
+      animating = false;
       phase = 'overview';
       renderOverview();
     });
@@ -311,7 +411,7 @@ export function createFlashcardsView(container, { getItems, getMastered, setMast
   container.querySelector('#fc-master').addEventListener('click', () => markCurrent(true));
 
   document.addEventListener('keydown', (e) => {
-    if (!isActive() || phase !== 'study') return;
+    if (!isActive() || phase !== 'study' || animating) return;
     if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
       e.preventDefault();
@@ -331,6 +431,7 @@ export function createFlashcardsView(container, { getItems, getMastered, setMast
 
   return {
     refresh(reset = false) {
+      animating = false;
       if (reset || phase !== 'study') {
         phase = 'overview';
       }
