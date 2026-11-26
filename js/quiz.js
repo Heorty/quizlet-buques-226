@@ -10,6 +10,7 @@ export function createQuizView(container, { getItems, onGameFinish, isActive }) 
   let startTs = null;
   let timerId = null;
   let locked = false;
+  let targetQueue = [];
 
   container.innerHTML = `
     <div class="bar">
@@ -60,12 +61,33 @@ export function createQuizView(container, { getItems, onGameFinish, isActive }) 
     stage.querySelector('#quiz-launch').addEventListener('click', startNewQuiz);
   }
 
+  function drawUniqueTargets(pool, count) {
+    const validIds = new Set(pool.map((x) => x.id));
+    targetQueue = targetQueue.filter((x) => validIds.has(x.id));
+
+    const picked = targetQueue.splice(0, count);
+    if (picked.length < count) {
+      const pickedIds = new Set(picked.map((x) => x.id));
+      const fresh = shuffle(pool).filter((x) => !pickedIds.has(x.id));
+      const needed = count - picked.length;
+      picked.push(...fresh.slice(0, needed));
+      targetQueue = fresh.slice(needed);
+    }
+    return picked;
+  }
+
   function startNewQuiz() {
     stopTimer();
     const pool = getItems().filter((x) => x.photo && x.buque);
-    const chosen = shuffle(pool).slice(0, TOTAL_QUESTIONS);
-    questions = chosen.map((target) => {
-      const distractors = shuffle(pool.filter((x) => x.id !== target.id)).slice(0, 3);
+    const chosen = drawUniqueTargets(pool, Math.min(TOTAL_QUESTIONS, pool.length));
+    const targetIds = new Set(chosen.map((x) => x.id));
+    const distractorPool = shuffle(pool.filter((x) => !targetIds.has(x.id)));
+    const uniqueDistractors = distractorPool.length >= chosen.length * 3;
+
+    questions = chosen.map((target, idx) => {
+      const distractors = uniqueDistractors
+        ? distractorPool.slice(idx * 3, idx * 3 + 3)
+        : shuffle(pool.filter((x) => x.id !== target.id)).slice(0, 3);
       return {
         target,
         options: shuffle([target, ...distractors]),
